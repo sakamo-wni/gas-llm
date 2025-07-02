@@ -52,19 +52,32 @@ SlackワークフローとGemini APIを使用した予約管理システムで�
 3. Bot User OAuth Tokenを取得
 4. アプリをワークスペースにインストール
 
-### 3. 設定値の更新
+### 3. 設定ファイルの作成
 
-Code.gsの`CONFIG`オブジェクトを更新：
+#### 設定ファイルのセットアップ
+```bash
+# 設定ファイルテンプレートをコピー
+cp config.example.js config.js
+```
+
+`config.js` を編集して実際の値を設定：
 
 ```javascript
-const CONFIG = {
-  SPREADSHEET_ID: 'your-spreadsheet-id',
-  CALENDAR_ID: 'your-calendar-id',
-  GEMINI_API_KEY: 'your-gemini-api-key',
-  SLACK_BOT_TOKEN: 'xoxb-your-bot-token',
-  SLACK_CHANNEL_ID: 'C1234567890' // 告知を投稿するチャンネルID
-};
+function getConfig() {
+  return {
+    SPREADSHEET_ID: "your_actual_spreadsheet_id",
+    CALENDAR_ID: "your_actual_calendar_id", 
+    GEMINI_API_KEY: "your_actual_gemini_api_key",
+    SLACK_BOT_TOKEN: "xoxb-your_actual_bot_token",
+    SLACK_CHANNEL_ID: "your_actual_channel_id"
+  };
+}
 ```
+
+#### セキュリティについて
+- `config.js` はGitにコミットされません（`.gitignore`で除外）
+- 本番環境では必ず実際の値を設定してください
+- APIキーやトークンは安全に管理してください
 
 ### 4. Web Appとしてデプロイ
 
