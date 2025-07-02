@@ -3,6 +3,7 @@
 # 環境設定ファイル
 .env
 config.js
+config.gs
 
 # Google Apps Script固有
 .clasp.json
