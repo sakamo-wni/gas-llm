@@ -3,11 +3,11 @@
 // カレンダーイベントを作成
 function createCalendarEvent(data) {
   try {
-    const calendar = CalendarApp.getCalendarById(CONFIG.CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById(getCONFIG().CALENDAR_ID);
     
     // カレンダーが取得できない場合のエラーハンドリング
     if (!calendar) {
-      console.error('カレンダーが見つかりません。IDを確認してください:', CONFIG.CALENDAR_ID);
+      console.error('カレンダーが見つかりません。IDを確認してください:', getCONFIG().CALENDAR_ID);
       return {
         success: false,
         message: 'カレンダーが見つかりません',
@@ -106,7 +106,7 @@ function generateRandomString(length) {
 // 特定の日時の予約状況を確認
 function checkCalendarAvailability(dateString) {
   try {
-    const calendar = CalendarApp.getCalendarById(CONFIG.CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById(getCONFIG().CALENDAR_ID);
     const checkDate = new Date(dateString);
     const endDate = new Date(checkDate.getTime() + (60 * 60 * 1000));
     

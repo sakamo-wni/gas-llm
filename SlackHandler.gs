@@ -6,7 +6,7 @@ function findUserByEmail(email_address) {
     const url = "https://slack.com/api/users.lookupByEmail";
     
     const payload = {
-      "token": CONFIG.SLACK_BOT_TOKEN,
+      "token": getCONFIG().SLACK_BOT_TOKEN,
       "email": email_address
     };
     
@@ -59,7 +59,7 @@ function sendSlackThreadReply(channelId, threadTs, message) {
     const options = {
       method: 'post',
       headers: {
-        'Authorization': `Bearer ${CONFIG.SLACK_BOT_TOKEN}`,
+        'Authorization': `Bearer ${getCONFIG().SLACK_BOT_TOKEN}`,
         'Content-Type': 'application/json'
       },
       payload: JSON.stringify(payload)
@@ -94,7 +94,7 @@ function sendSlackMessage(userId, message) {
     const options = {
       method: 'post',
       headers: {
-        'Authorization': `Bearer ${CONFIG.SLACK_BOT_TOKEN}`,
+        'Authorization': `Bearer ${getCONFIG().SLACK_BOT_TOKEN}`,
         'Content-Type': 'application/json'
       },
       payload: JSON.stringify(payload)
@@ -122,7 +122,7 @@ function postToChannel(message) {
     const url = 'https://slack.com/api/chat.postMessage';
     
     const payload = {
-      channel: CONFIG.SLACK_CHANNEL_ID,
+      channel: getCONFIG().SLACK_CHANNEL_ID,
       text: message,
       unfurl_links: false,
       unfurl_media: false
@@ -131,7 +131,7 @@ function postToChannel(message) {
     const options = {
       method: 'post',
       headers: {
-        'Authorization': `Bearer ${CONFIG.SLACK_BOT_TOKEN}`,
+        'Authorization': `Bearer ${getCONFIG().SLACK_BOT_TOKEN}`,
         'Content-Type': 'application/json'
       },
       payload: JSON.stringify(payload)
@@ -191,7 +191,7 @@ function addSlackReaction(channel, timestamp, reaction) {
     const options = {
       method: 'post',
       headers: {
-        'Authorization': `Bearer ${CONFIG.SLACK_BOT_TOKEN}`,
+        'Authorization': `Bearer ${getCONFIG().SLACK_BOT_TOKEN}`,
         'Content-Type': 'application/json'
       },
       payload: JSON.stringify(payload)
@@ -225,7 +225,7 @@ function removeSlackReaction(channel, timestamp, reaction) {
     const options = {
       method: 'post',
       headers: {
-        'Authorization': `Bearer ${CONFIG.SLACK_BOT_TOKEN}`,
+        'Authorization': `Bearer ${getCONFIG().SLACK_BOT_TOKEN}`,
         'Content-Type': 'application/json'
       },
       payload: JSON.stringify(payload)

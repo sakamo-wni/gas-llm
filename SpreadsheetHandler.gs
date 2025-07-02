@@ -3,7 +3,7 @@
 // スプレッドシートにデータを書き込む
 function writeToSpreadsheet(data) {
   try {
-    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const spreadsheet = SpreadsheetApp.openById(getCONFIG().SPREADSHEET_ID);
     const sheet = spreadsheet.getActiveSheet();
     
     // ヘッダーが存在しない場合は追加（新しい列構成）
@@ -50,20 +50,30 @@ function writeToSpreadsheet(data) {
 // 予約ステータスを更新
 function updateReservationStatus(data, status) {
   try {
-    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const spreadsheet = SpreadsheetApp.openById(getCONFIG().SPREADSHEET_ID);
     const sheet = spreadsheet.getActiveSheet();
     const dataRange = sheet.getDataRange();
     const values = dataRange.getValues();
     
     // 該当する行を探す（新しい列構成に対応）
     for (let i = 1; i < values.length; i++) {
-      // E列（第一希望）、B列（作成者）、C列（タイトル）で一致を確認
-      if (values[i][4] && 
-          new Date(values[i][4]).getTime() === new Date(data.date).getTime() && 
-          values[i][1] === data.creator && 
-          values[i][2] === data.title) {
+      // B列（作成者）、C列（タイトル）で一致を確認
+      if (values[i][1] === data.creator && values[i][2] === data.title) {
         // G列（ステータス）を更新
         sheet.getRange(i + 1, 7).setValue(status);
+        
+        // 第二希望で成功した場合は、実際に使用された日時も記録
+        if (data.isSecondChoice && status === '完了') {
+          // I列に使用された日時を記録
+          if (sheet.getMaxColumns() < 9) {
+            // 列が足りない場合は追加
+            sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
+            sheet.getRange(1, 9).setValue('実際の予約日時');
+          }
+          sheet.getRange(i + 1, 9).setValue(data.date);
+          console.log(`第二希望で予約完了。実際の予約日時も記録しました: ${data.date}`);
+        }
+        
         console.log(`ステータスを「${status}」に更新しました`);
         break;
       }

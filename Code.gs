@@ -1,18 +1,37 @@
 // Slackワークフロー連携アプリ - メインエントリーポイント
 
 // 設定値を関数で取得する方式に変更
-function getConfig() {
-  return {
-    SPREADSHEET_ID: "YOUR_SPREADSHEET_ID",
-    CALENDAR_ID: "YOUR_CALENDAR_ID",
-    GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",
-    SLACK_BOT_TOKEN: "YOUR_SLACK_BOT_TOKEN",
-    SLACK_CHANNEL_ID: "YOUR_SLACK_CHANNEL_ID"
-  };
+// スクリプトプロパティから設定を取得
+function getConfigValues() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    return {
+      SPREADSHEET_ID: props.getProperty('SPREADSHEET_ID'),
+      CALENDAR_ID: props.getProperty('CALENDAR_ID'),
+      GEMINI_API_KEY: props.getProperty('GEMINI_API_KEY'),
+      SLACK_BOT_TOKEN: props.getProperty('SLACK_BOT_TOKEN'),
+      SLACK_CHANNEL_ID: props.getProperty('SLACK_CHANNEL_ID')
+    };
+  } catch (e) {
+    console.error('スクリプトプロパティの取得に失敗:', e);
+    // フォールバック値
+    return {
+      SPREADSHEET_ID: "YOUR_SPREADSHEET_ID",
+      CALENDAR_ID: "YOUR_CALENDAR_ID",
+      GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",
+      SLACK_BOT_TOKEN: "YOUR_SLACK_BOT_TOKEN",
+      SLACK_CHANNEL_ID: "YOUR_SLACK_CHANNEL_ID"
+    };
+  }
 }
 
-// CONFIG変数を定義
-var CONFIG = getConfig();
+// CONFIG変数を動的に取得する関数
+function getCONFIG() {
+  console.log('getCONFIG関数が呼び出されました');
+  const config = getConfigValues();
+  console.log('取得した設定:', JSON.stringify(config));
+  return config;
+}
 
 // Slackワークフローからのリクエストを受信
 function doPost_original(e) {
@@ -153,10 +172,11 @@ function processReservation(data) {
       const mentionText = userId ? `<@${userId}>` : data.creator;
       
       const meetUrlText = calendarResult.meetUrl ? `\nGoogle Meet: ${calendarResult.meetUrl}` : '';
+      const choiceText = data.isSecondChoice ? '（第二希望での予約）' : '';
       sendSlackThreadReply(
-        CONFIG.SLACK_CHANNEL_ID,
+        getCONFIG().SLACK_CHANNEL_ID,
         data.threadTs,
-        `${mentionText} 予約が完了しました！\n日時: ${jstDateStringForReply}\nタイトル: ${data.title}\n場所: ${data.location}${meetUrlText}`
+        `${mentionText} 予約が完了しました！${choiceText}\n日時: ${jstDateStringForReply}\nタイトル: ${data.title}\n場所: ${data.location}${meetUrlText}`
       );
 
       // 告知文を生成してチャンネルに投稿
@@ -178,11 +198,67 @@ function processReservation(data) {
       const announcement = generateAnnouncement(announcementData);
       postToChannel(announcement);
 
+      // ステータスを完了に更新
+      updateReservationStatus(data, '完了');
+
       return {
         success: true,
         message: "予約が完了しました",
       };
     } else {
+      // 第一希望が失敗した場合、第二希望があるかチェック
+      if (data.secondDate && !data.isSecondChoice) {
+        console.log('第一希望が失敗、第二希望を試行します:', data.secondDate);
+        
+        // 第二希望で再試行
+        const secondChoiceData = {
+          ...data,
+          date: data.secondDate,
+          isSecondChoice: true
+        };
+        
+        const secondResult = createCalendarEvent(secondChoiceData);
+        
+        if (secondResult.success) {
+          // 第二希望で成功
+          const jstDateForSecond = new Date(data.secondDate);
+          const jstDateStringForSecond = Utilities.formatDate(
+            jstDateForSecond,
+            "JST",
+            "yyyy年MM月dd日 HH:mm"
+          );
+
+          const userIdForSecond = findUserByEmail(data.creator);
+          const mentionTextForSecond = userIdForSecond ? `<@${userIdForSecond}>` : data.creator;
+          
+          const meetUrlTextForSecond = secondResult.meetUrl ? `\nGoogle Meet: ${secondResult.meetUrl}` : '';
+          sendSlackThreadReply(
+            getCONFIG().SLACK_CHANNEL_ID,
+            data.threadTs,
+            `${mentionTextForSecond} 第一希望は空いていませんでしたが、第二希望で予約が完了しました！\n日時: ${jstDateStringForSecond}\nタイトル: ${data.title}\n場所: ${data.location}${meetUrlTextForSecond}`
+          );
+
+          // 告知文を生成してチャンネルに投稿
+          const announcementData = {
+            ...data,
+            date: jstDateStringForSecond,
+            description: data.description || "",
+            meetUrl: secondResult.meetUrl || ""
+          };
+
+          const announcement = generateAnnouncement(announcementData);
+          postToChannel(announcement);
+
+          // ステータスを完了に更新（第二希望で成功）
+          updateReservationStatus(secondChoiceData, '完了');
+
+          return {
+            success: true,
+            message: "第二希望で予約が完了しました",
+          };
+        }
+      }
+      
       // 予約失敗時の処理（スレッド返信）
       // 日時をJST形式に変換
       const jstDateForError = new Date(data.date);
@@ -196,13 +272,39 @@ function processReservation(data) {
       const userIdForError = findUserByEmail(data.creator);
       const mentionTextForError = userIdForError ? `<@${userIdForError}>` : data.creator;
       
+      let errorMessage = `${mentionTextForError} 申し訳ございません。${jstDateStringForError}は既に予約が入っています。\n既存の予約: ${calendarResult.conflictingEvents.join(", ")}`;
+      
+      if (data.secondDate && data.isSecondChoice) {
+        // 第二希望も失敗した場合
+        const jstSecondDateForError = new Date(data.secondDate);
+        const jstSecondDateStringForError = Utilities.formatDate(
+          jstSecondDateForError,
+          "JST",
+          "yyyy年MM月dd日 HH:mm"
+        );
+        errorMessage += `\n第二希望（${jstSecondDateStringForError}）も既に予約が入っています。\n\n新しい日時をこのスレッドに返信してください。`;
+      } else if (data.secondDate) {
+        // 第二希望もあったが失敗した場合
+        const jstSecondDateForError = new Date(data.secondDate);
+        const jstSecondDateStringForError = Utilities.formatDate(
+          jstSecondDateForError,
+          "JST",
+          "yyyy年MM月dd日 HH:mm"
+        );
+        errorMessage += `\n第二希望（${jstSecondDateStringForError}）も既に予約が入っています。\n\n新しい日時をこのスレッドに返信してください。`;
+      } else {
+        // 第二希望がない場合
+        errorMessage += `\n\n第二希望の日時をこのスレッドに返信してください。`;
+      }
+      
       sendSlackThreadReply(
-        CONFIG.SLACK_CHANNEL_ID,
+        getCONFIG().SLACK_CHANNEL_ID,
         data.threadTs,
-        `${mentionTextForError} 申し訳ございません。${jstDateStringForError}は既に予約が入っています。\n既存の予約: ${calendarResult.conflictingEvents.join(
-          ", "
-        )}\n\n第二希望の日時をこのスレッドに返信してください。`
+        errorMessage
       );
+
+      // ステータスを失敗に更新
+      updateReservationStatus(data, '失敗');
 
       return {
         success: false,
