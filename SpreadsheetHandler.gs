@@ -1,0 +1,76 @@
+// スプレッドシート操作関連の関数
+
+// スプレッドシートにデータを書き込む
+function writeToSpreadsheet(data) {
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getActiveSheet();
+    
+    // ヘッダーが存在しない場合は追加（新しい列構成）
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['日付', '作成者', 'タイトル', '場所', '第一希望', '第二希望', 'ステータス', '概要', 'tsを含むURL']);
+    }
+    
+    // 既存のワークフローから来た場合は、最終行のデータを更新
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      const lastRowData = sheet.getRange(lastRow, 1, 1, 8).getValues()[0];
+      // 同じ第一希望日時のデータがあれば、それを更新（ステータスのみ）
+      if (lastRowData[4] && new Date(lastRowData[4]).getTime() === new Date(data.date).getTime()) {
+        // ステータスを更新
+        sheet.getRange(lastRow, 7).setValue('処理中');
+        console.log('既存の行のステータスを更新しました');
+        return true;
+      }
+    }
+    
+    // 新規データの場合は追加（通常はワークフローが既に追加しているので、この処理は実行されない）
+    const row = [
+      new Date(),           // A列: 日付（記録日時）
+      data.creator,         // B列: 作成者
+      data.title,           // C列: タイトル
+      data.location,        // D列: 場所
+      data.date,            // E列: 第一希望
+      data.secondDate || '', // F列: 第二希望
+      '処理中',             // G列: ステータス
+      data.description || '' // H列: 概要
+    ];
+    
+    sheet.appendRow(row);
+    
+    console.log('スプレッドシートへの書き込みが完了しました');
+    return true;
+    
+  } catch (error) {
+    console.error('スプレッドシート書き込みエラー:', error);
+    throw error;
+  }
+}
+
+// 予約ステータスを更新
+function updateReservationStatus(data, status) {
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getActiveSheet();
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    
+    // 該当する行を探す（新しい列構成に対応）
+    for (let i = 1; i < values.length; i++) {
+      // E列（第一希望）、B列（作成者）、C列（タイトル）で一致を確認
+      if (values[i][4] && 
+          new Date(values[i][4]).getTime() === new Date(data.date).getTime() && 
+          values[i][1] === data.creator && 
+          values[i][2] === data.title) {
+        // G列（ステータス）を更新
+        sheet.getRange(i + 1, 7).setValue(status);
+        console.log(`ステータスを「${status}」に更新しました`);
+        break;
+      }
+    }
+    
+  } catch (error) {
+    console.error('ステータス更新エラー:', error);
+    throw error;
+  }
+}
