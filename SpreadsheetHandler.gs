@@ -14,12 +14,14 @@ function writeToSpreadsheet(data) {
     // 既存のワークフローから来た場合は、最終行のデータを更新
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
-      const lastRowData = sheet.getRange(lastRow, 1, 1, 8).getValues()[0];
+      const lastRowData = sheet.getRange(lastRow, 1, 1, 9).getValues()[0];
       // 同じ第一希望日時のデータがあれば、それを更新（ステータスのみ）
       if (lastRowData[4] && new Date(lastRowData[4]).getTime() === new Date(data.date).getTime()) {
-        // ステータスを更新
-        sheet.getRange(lastRow, 7).setValue('処理中');
-        console.log('既存の行のステータスを更新しました');
+        // 既に処理中でない場合のみ更新
+        if (lastRowData[6] !== '処理中') {
+          sheet.getRange(lastRow, 7).setValue('処理中');
+          console.log('既存の行のステータスを更新しました');
+        }
         return true;
       }
     }
@@ -55,28 +57,33 @@ function updateReservationStatus(data, status) {
     const dataRange = sheet.getDataRange();
     const values = dataRange.getValues();
     
-    // 該当する行を探す（新しい列構成に対応）
-    for (let i = 1; i < values.length; i++) {
-      // B列（作成者）、C列（タイトル）で一致を確認
-      if (values[i][1] === data.creator && values[i][2] === data.title) {
-        // G列（ステータス）を更新
-        sheet.getRange(i + 1, 7).setValue(status);
-        
-        // 第二希望で成功した場合は、実際に使用された日時も記録
-        if (data.isSecondChoice && status === '完了') {
-          // I列に使用された日時を記録
-          if (sheet.getMaxColumns() < 9) {
-            // 列が足りない場合は追加
-            sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
-            sheet.getRange(1, 9).setValue('実際の予約日時');
-          }
-          sheet.getRange(i + 1, 9).setValue(data.date);
-          console.log(`第二希望で予約完了。実際の予約日時も記録しました: ${data.date}`);
-        }
-        
-        console.log(`ステータスを「${status}」に更新しました`);
+    // 該当する行を探す（最新のマッチする行を使用）
+    let targetRow = -1;
+    for (let i = values.length - 1; i >= 1; i--) { // 最新から検索
+      // B列（作成者）、C列（タイトル）、G列（ステータス）で一致を確認
+      if (values[i][1] === data.creator && values[i][2] === data.title && values[i][6] === '処理中') {
+        targetRow = i;
         break;
       }
+    }
+    
+    if (targetRow >= 0) {
+      // G列（ステータス）を更新
+      sheet.getRange(targetRow + 1, 7).setValue(status);
+      
+      // 第二希望で成功した場合は、実際に使用された日時も記録
+      if (data.isSecondChoice && status === '完了') {
+        // I列に使用された日時を記録
+        if (sheet.getMaxColumns() < 9) {
+          // 列が足りない場合は追加
+          sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
+          sheet.getRange(1, 9).setValue('実際の予約日時');
+        }
+        sheet.getRange(targetRow + 1, 9).setValue(data.date);
+        console.log(`第二希望で予約完了。実際の予約日時も記録しました: ${data.date}`);
+      }
+      
+      console.log(`ステータスを「${status}」に更新しました`);
     }
     
   } catch (error) {

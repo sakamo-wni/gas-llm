@@ -1,7 +1,7 @@
 // 完全に新しいSlackテスト用ファイル
 // このファイルを新しいGoogle Apps Scriptプロジェクトにコピーしてテストしてください
 
-function doPost(e) {
+function doPost_newtest(e) {
   console.log('=== doPost V8 Test ===');
   console.log('Time:', new Date().toISOString());
   console.log('Arguments count:', arguments.length);

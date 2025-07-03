@@ -1,5 +1,108 @@
 // Gemini API関連の関数
 
+// 直前通知メッセージを生成
+function generateNotificationMessage(data, type) {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${
+      getCONFIG().GEMINI_API_KEY
+    }`;
+
+    let prompt;
+    if (type === "24h") {
+      prompt = `
+      以下のイベント情報を基に、24時間前の通知メッセージを作成してください。
+
+      タイトル: ${data.title}
+      日時: ${data.date} ${data.time}
+      場所: ${data.location}
+      ${data.meetUrl ? `Google Meet URL: ${data.meetUrl}` : ""}
+
+      メッセージは以下の要素を含めてください：
+      - 明日の予定であることを明記
+      - イベントの詳細（タイトル、日時、場所）
+      - 準備を促す内容
+      ${data.meetUrl ? "- Google MeetのURLを含める" : ""}
+      - 親しみやすい絵文字を適度に使用
+
+      文字数は2-3文程度でお願いします。
+      `;
+    } else if (type === "3h") {
+      prompt = `
+      以下のイベント情報を基に、3時間前の通知メッセージを作成してください。
+
+      タイトル: ${data.title}
+      日時: ${data.date} ${data.time}
+      場所: ${data.location}
+      ${data.meetUrl ? `Google Meet URL: ${data.meetUrl}` : ""}
+
+      メッセージは以下の要素を含めてください：
+      - 本日の予定であることを明記
+      - イベントの詳細（タイトル、日時、場所）
+      - 準備の確認を促す内容
+      ${data.meetUrl ? "- Google MeetのURLを含める" : ""}
+      - 親しみやすい絵文字を適度に使用
+
+      文字数は2-3文程度でお願いします。
+      `;
+    } else if (type === "3m") {
+      prompt = `
+      以下のイベント情報を基に、3分前の直前通知メッセージを作成してください。
+
+      タイトル: ${data.title}
+      日時: ${data.date} ${data.time}
+      場所: ${data.location}
+      ${data.meetUrl ? `Google Meet URL: ${data.meetUrl}` : ""}
+
+      メッセージは以下の要素を含めてください：
+      - まもなく始まることを強調
+      - イベントの詳細（タイトル、日時、場所）
+      - 急ぎの準備を促す内容
+      ${data.meetUrl ? "- Google MeetのURLを含める" : ""}
+      - 緊急感のある絵文字を使用
+
+      文字数は2-3文程度でお願いします。
+      `;
+    } else {
+      throw new Error("未知の通知タイプ: " + type);
+    }
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+    };
+
+    const options = {
+      method: "post",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      payload: JSON.stringify(requestBody),
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const responseData = JSON.parse(response.getContentText());
+
+    if (responseData.candidates && responseData.candidates.length > 0) {
+      const generatedText = responseData.candidates[0].content.parts[0].text;
+      console.log("通知メッセージ生成成功:", generatedText);
+      return generatedText;
+    } else {
+      console.error("通知メッセージ生成失敗: 応答が空です");
+      return null;
+    }
+  } catch (error) {
+    console.error("通知メッセージ生成エラー:", error);
+    return null;
+  }
+}
+
 // 告知文を生成
 function generateAnnouncement(data) {
   try {
