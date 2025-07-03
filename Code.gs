@@ -1,136 +1,24 @@
 // Slackワークフロー連携アプリ - メインエントリーポイント
 
-// 設定値を関数で取得する方式に変更
-// スクリプトプロパティから設定を取得
-function getConfigValues() {
-  try {
-    const props = PropertiesService.getScriptProperties();
-    return {
-      SPREADSHEET_ID: props.getProperty("SPREADSHEET_ID"),
-      CALENDAR_ID: props.getProperty("CALENDAR_ID"),
-      GEMINI_API_KEY: props.getProperty("GEMINI_API_KEY"),
-      SLACK_BOT_TOKEN: props.getProperty("SLACK_BOT_TOKEN"),
-      SLACK_CHANNEL_ID: props.getProperty("SLACK_CHANNEL_ID"),
-      SLACK_WEBHOOK_URL: props.getProperty("SLACK_WEBHOOK_URL"),
-      SLACK_MESSAGE_TEMPLATE_24H: props.getProperty(
-        "SLACK_MESSAGE_TEMPLATE_24H"
-      ),
-      SLACK_MESSAGE_TEMPLATE_3H: props.getProperty("SLACK_MESSAGE_TEMPLATE_3H"),
-      SLACK_MESSAGE_TEMPLATE_3M: props.getProperty("SLACK_MESSAGE_TEMPLATE_3M"),
-      NOTIFICATION_SHEET_NAME: props.getProperty("NOTIFICATION_SHEET_NAME"),
-      RESERVATION_SHEET_NAME: props.getProperty("RESERVATION_SHEET_NAME"),
-    };
-  } catch (e) {
-    console.error("スクリプトプロパティの取得に失敗:", e);
-    // フォールバック値
-    return {
-      SPREADSHEET_ID: "YOUR_SPREADSHEET_ID",
-      CALENDAR_ID: "YOUR_CALENDAR_ID",
-      GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",
-      SLACK_BOT_TOKEN: "YOUR_SLACK_BOT_TOKEN",
-      SLACK_CHANNEL_ID: "YOUR_SLACK_CHANNEL_ID",
-      SLACK_WEBHOOK_URL: "YOUR_SLACK_WEBHOOK_URL",
-      SLACK_MESSAGE_TEMPLATE_24H: "YOUR_SLACK_MESSAGE_TEMPLATE_24H",
-      SLACK_MESSAGE_TEMPLATE_3H: "YOUR_SLACK_MESSAGE_TEMPLATE_3H",
-      SLACK_MESSAGE_TEMPLATE_3M: "YOUR_SLACK_MESSAGE_TEMPLATE_3M",
-      NOTIFICATION_SHEET_NAME: "YOUR_NOTIFICATION_SHEET_NAME",
-      RESERVATION_SHEET_NAME: "YOUR_RESERVATION_SHEET_NAME",
-    };
-  }
-}
-
-// CONFIG変数を動的に取得する関数
-function getCONFIG() {
-  console.log("getCONFIG関数が呼び出されました");
-  const config = getConfigValues();
-  console.log("取得した設定:", JSON.stringify(config));
-  return config;
-}
+// 設定管理関連の関数はConfigHandler.gsに移動しました
 
 // Slackワークフローからのリクエストを受信
 function doPost_original(e) {
   try {
-    console.log("=== doPost関数開始 ===");
-    console.log("eオブジェクト全体:", JSON.stringify(e, null, 2));
-
-    // 受信データの詳細チェック
-    if (!e) {
-      console.error("eオブジェクトが存在しません");
-      return ContentService.createTextOutput("No event object").setMimeType(
+    const params = parsePostData(e);
+    if (!params) {
+      return ContentService.createTextOutput("Invalid request").setMimeType(
         ContentService.MimeType.TEXT
       );
     }
-
-    // postDataの詳細チェック
-    if (!e.postData) {
-      console.error("postDataが存在しません");
-      console.log("利用可能なプロパティ:", Object.keys(e));
-      return ContentService.createTextOutput("No postData").setMimeType(
-        ContentService.MimeType.TEXT
-      );
-    }
-
-    // contentsの詳細チェック
-    if (!e.postData.contents) {
-      console.error("contentsが存在しません");
-      console.log("postDataのプロパティ:", Object.keys(e.postData));
-      console.log("postData.type:", e.postData.type);
-      console.log("postData.length:", e.postData.length);
-      return ContentService.createTextOutput("No contents").setMimeType(
-        ContentService.MimeType.TEXT
-      );
-    }
-
-    console.log("受信データ:", e.postData.contents);
-    console.log("データ長:", e.postData.contents.length);
-    console.log("データ型:", typeof e.postData.contents);
-
-    let params;
-    try {
-      params = JSON.parse(e.postData.contents);
-      console.log("パース成功");
-      console.log("パラメータのキー:", Object.keys(params));
-      console.log("params.type:", params.type);
-      console.log("params.challenge:", params.challenge);
-    } catch (parseError) {
-      console.error("JSON解析エラー:", parseError.toString());
-      console.log("解析失敗データ:", e.postData.contents);
-      console.log("最初の100文字:", e.postData.contents.substring(0, 100));
-      return ContentService.createTextOutput(
-        "Parse error: " + parseError.toString()
-      ).setMimeType(ContentService.MimeType.TEXT);
-    }
-
+    
     // Slackイベント認証（URL Verification）
     if (params.type === "url_verification") {
-      console.log("=== URL Verification 処理開始 ===");
-      console.log("challenge値の型:", typeof params.challenge);
-      console.log(
-        "challenge値の長さ:",
-        params.challenge ? params.challenge.length : "undefined"
-      );
-      console.log("challenge値:", params.challenge);
-
-      if (!params.challenge) {
-        console.error("challengeパラメータが存在しません");
-        return ContentService.createTextOutput(
-          "No challenge parameter"
-        ).setMimeType(ContentService.MimeType.TEXT);
-      }
-
-      const challengeResponse = String(params.challenge);
-      console.log("文字列に変換後:", challengeResponse);
-      console.log("返却する値:", challengeResponse);
-
-      const response = ContentService.createTextOutput(challengeResponse);
-      console.log("=== URL Verification 処理完了 ===");
-      return response;
+      return handleUrlVerification(params);
     }
 
     // Slackイベント（app_mention）の処理
     if (params.event && params.event.type === "app_mention") {
-      console.log("app_mentionイベントを検出");
-      // 非同期処理のため、即座に200 OKを返す
       processAppMention(params.event);
       return ContentService.createTextOutput(
         JSON.stringify({ ok: true })
@@ -143,19 +31,12 @@ function doPost_original(e) {
     }
 
     // Slackワークフローからの入力データ
-    const date = params.date;
-    const creator = params.creator;
-    const title = params.title;
-    const location = params.location;
-    const threadTs = params.thread_ts; // スレッドのタイムスタンプ
-
-    // メイン処理を実行
     const result = processReservation({
-      date: date,
-      creator: creator,
-      title: title,
-      location: location,
-      threadTs: threadTs,
+      date: params.date,
+      creator: params.creator,
+      title: params.title,
+      location: params.location,
+      threadTs: params.thread_ts,
     });
 
     // Slackに結果を返す
@@ -173,187 +54,31 @@ function doPost_original(e) {
   }
 }
 
-// メイン処理
-function processReservation(data) {
-  try {
-    // 1. スプレッドシートに記録
-    writeToSpreadsheet(data);
-
-    // 2. カレンダーに予約を試みる
-    const calendarResult = createCalendarEvent(data);
-
-    if (calendarResult.success) {
-      // 予約成功時の処理
-      // 作成者に成功通知を送信（スレッド返信）
-      // 日時をJST形式に変換
-      const jstDateForReply = new Date(data.date);
-      const jstDateStringForReply = Utilities.formatDate(
-        jstDateForReply,
-        "JST",
-        "yyyy年MM月dd日 HH:mm"
-      );
-
-      // メールアドレスからSlackユーザーIDを取得
-      console.log("作成者情報:", data.creator);
-      const userId = findUserByEmail(data.creator);
-      console.log("取得したユーザーID:", userId);
-      const mentionText = userId ? `<@${userId}>` : data.creator;
-
-      const meetUrlText = calendarResult.meetUrl
-        ? `\nGoogle Meet: ${calendarResult.meetUrl}`
-        : "";
-      const choiceText = data.isSecondChoice ? "（第二希望での予約）" : "";
-      sendSlackThreadReply(
-        getCONFIG().SLACK_CHANNEL_ID,
-        data.threadTs,
-        `${mentionText} 予約が完了しました！${choiceText}\n日時: ${jstDateStringForReply}\nタイトル: ${data.title}\n場所: ${data.location}${meetUrlText}`
-      );
-
-      // 告知文を生成してチャンネルに投稿
-      // 日時をJST形式に変換
-      const jstDate = new Date(data.date);
-      const jstDateString = Utilities.formatDate(
-        jstDate,
-        "JST",
-        "yyyy年MM月dd日 HH:mm"
-      );
-
-      const announcementData = {
-        ...data,
-        date: jstDateString,
-        description: data.description || "",
-        meetUrl: calendarResult.meetUrl || "",
-      };
-
-      const announcement = generateAnnouncement(announcementData);
-      postToChannel(announcement);
-
-      // ステータスを完了に更新
-      updateReservationStatus(data, "完了");
-
-      return {
-        success: true,
-        message: "予約が完了しました",
-      };
-    } else {
-      // 第一希望が失敗した場合、第二希望があるかチェック
-      if (data.secondDate && !data.isSecondChoice) {
-        console.log("第一希望が失敗、第二希望を試行します:", data.secondDate);
-
-        // 第二希望で再試行
-        const secondChoiceData = {
-          ...data,
-          date: data.secondDate,
-          isSecondChoice: true,
-        };
-
-        const secondResult = createCalendarEvent(secondChoiceData);
-
-        if (secondResult.success) {
-          // 第二希望で成功
-          const jstDateForSecond = new Date(data.secondDate);
-          const jstDateStringForSecond = Utilities.formatDate(
-            jstDateForSecond,
-            "JST",
-            "yyyy年MM月dd日 HH:mm"
-          );
-
-          const userIdForSecond = findUserByEmail(data.creator);
-          const mentionTextForSecond = userIdForSecond
-            ? `<@${userIdForSecond}>`
-            : data.creator;
-
-          const meetUrlTextForSecond = secondResult.meetUrl
-            ? `\nGoogle Meet: ${secondResult.meetUrl}`
-            : "";
-          sendSlackThreadReply(
-            getCONFIG().SLACK_CHANNEL_ID,
-            data.threadTs,
-            `${mentionTextForSecond} 第一希望は空いていませんでしたが、第二希望で予約が完了しました！\n日時: ${jstDateStringForSecond}\nタイトル: ${data.title}\n場所: ${data.location}${meetUrlTextForSecond}`
-          );
-
-          // 告知文を生成してチャンネルに投稿
-          const announcementData = {
-            ...data,
-            date: jstDateStringForSecond,
-            description: data.description || "",
-            meetUrl: secondResult.meetUrl || "",
-          };
-
-          const announcement = generateAnnouncement(announcementData);
-          postToChannel(announcement);
-
-          // ステータスを完了に更新（第二希望で成功）
-          updateReservationStatus(secondChoiceData, "完了");
-
-          return {
-            success: true,
-            message: "第二希望で予約が完了しました",
-          };
-        }
-      }
-
-      // 予約失敗時の処理（スレッド返信）
-      // 日時をJST形式に変換
-      const jstDateForError = new Date(data.date);
-      const jstDateStringForError = Utilities.formatDate(
-        jstDateForError,
-        "JST",
-        "yyyy年MM月dd日 HH:mm"
-      );
-
-      // メールアドレスからSlackユーザーIDを取得
-      const userIdForError = findUserByEmail(data.creator);
-      const mentionTextForError = userIdForError
-        ? `<@${userIdForError}>`
-        : data.creator;
-
-      let errorMessage = `${mentionTextForError} 申し訳ございません。${jstDateStringForError}は既に予約が入っています。\n既存の予約: ${calendarResult.conflictingEvents.join(
-        ", "
-      )}`;
-
-      if (data.secondDate && data.isSecondChoice) {
-        // 第二希望も失敗した場合
-        const jstSecondDateForError = new Date(data.secondDate);
-        const jstSecondDateStringForError = Utilities.formatDate(
-          jstSecondDateForError,
-          "JST",
-          "yyyy年MM月dd日 HH:mm"
-        );
-        errorMessage += `\n第二希望（${jstSecondDateStringForError}）も既に予約が入っています。\n\n新しい日時をこのスレッドに返信してください。`;
-      } else if (data.secondDate) {
-        // 第二希望もあったが失敗した場合
-        const jstSecondDateForError = new Date(data.secondDate);
-        const jstSecondDateStringForError = Utilities.formatDate(
-          jstSecondDateForError,
-          "JST",
-          "yyyy年MM月dd日 HH:mm"
-        );
-        errorMessage += `\n第二希望（${jstSecondDateStringForError}）も既に予約が入っています。\n\n新しい日時をこのスレッドに返信してください。`;
-      } else {
-        // 第二希望がない場合
-        errorMessage += `\n\n第二希望の日時をこのスレッドに返信してください。`;
-      }
-
-      sendSlackThreadReply(
-        getCONFIG().SLACK_CHANNEL_ID,
-        data.threadTs,
-        errorMessage
-      );
-
-      // ステータスを失敗に更新
-      updateReservationStatus(data, "失敗");
-
-      return {
-        success: false,
-        message: "予約が失敗しました",
-        needRetry: true,
-      };
-    }
-  } catch (error) {
-    console.error("processReservation エラー:", error);
-    throw error;
+// POSTデータのパースとバリデーション
+function parsePostData(e) {
+  if (!e || !e.postData || !e.postData.contents) {
+    console.error("無効なリクエストデータ");
+    return null;
   }
+
+  try {
+    return JSON.parse(e.postData.contents);
+  } catch (parseError) {
+    console.error("JSON解析エラー:", parseError.toString());
+    return null;
+  }
+}
+
+// URL Verification処理
+function handleUrlVerification(params) {
+  if (!params.challenge) {
+    console.error("challengeパラメータが存在しません");
+    return ContentService.createTextOutput(
+      "No challenge parameter"
+    ).setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  return ContentService.createTextOutput(String(params.challenge));
 }
 
 // 再試行処理（第二希望以降の処理）
@@ -402,34 +127,11 @@ function onSpreadsheetChange(e) {
     // 最新行のデータを取得（9列まで取得）
     const data = sheet.getRange(lastRow, 1, 1, 9).getValues()[0];
 
-    // デバッグ：全データを確認
-    console.log("スプレッドシートの行データ:", data);
-    console.log("B列（作成者）:", data[1]);
-
     // 空のデータは処理しない（第一希望の日付をチェック）
     if (!data[4]) return; // E列: 第一希望 が空の場合
 
     // 日付を適切な形式に変換
-    const dateValue = data[4]; // E列: 第一希望
-    let formattedDate;
-
-    // デバッグログ
-    console.log("元の日付データ:", dateValue);
-    console.log("データ型:", typeof dateValue);
-
-    if (dateValue instanceof Date) {
-      // Dateオブジェクトの場合
-      // スプレッドシートの日付を正しくJSTとして扱う
-      formattedDate = Utilities.formatDate(
-        dateValue,
-        "JST",
-        "yyyy-MM-dd HH:mm"
-      );
-      console.log("変換後の日付:", formattedDate);
-    } else {
-      // 文字列の場合
-      formattedDate = dateValue;
-    }
+    const formattedDate = convertSpreadsheetDate(data[4]); // E列: 第一希望
 
     // メイン処理を実行
     processReservation({
@@ -446,18 +148,8 @@ function onSpreadsheetChange(e) {
   }
 }
 
-// URLからthread_tsを抽出
-function extractThreadTs(url) {
-  if (!url) return null;
-  const match = url.match(/p(\d+)/);
-  return match ? (parseInt(match[1]) / 1000000).toString() : null;
-}
-
 // テスト用: GET リクエストの処理
 function doGet_original(e) {
-  console.log("doGet関数が呼び出されました");
-  console.log("パラメータ:", e.parameter);
-
   return ContentService.createTextOutput(
     "Google Apps Script is working!"
   ).setMimeType(ContentService.MimeType.TEXT);
@@ -466,8 +158,6 @@ function doGet_original(e) {
 // app_mentionイベントを処理
 function processAppMention(event) {
   try {
-    console.log("app_mentionイベントを受信:", JSON.stringify(event));
-
     // ボット自身のメッセージは無視
     if (event.bot_id) {
       return;

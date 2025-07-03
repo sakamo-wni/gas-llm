@@ -1,6 +1,6 @@
 // Slack Event API テスト用のシンプルな関数
 
-function doPost(e) {
+function doPost_test(e) {
   console.log('doPost called');
   console.log('Arguments length:', arguments.length);
   console.log('First argument:', arguments[0]);

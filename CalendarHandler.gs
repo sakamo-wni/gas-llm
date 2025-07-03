@@ -118,8 +118,8 @@ function createCalendarEvent(data) {
       console.log("Google Meet URL取得エラー:", e);
     }
 
-    // スプレッドシートのステータスを更新
-    updateReservationStatus(data, "予約完了");
+    // スプレッドシートのステータスを更新は呼び出し元で行う
+    // updateReservationStatus(data, "予約完了");
 
     // 24時間前／3時間前のSlack通知トリガーを設定
     try {
@@ -135,10 +135,7 @@ function createCalendarEvent(data) {
     };
   } catch (error) {
     console.error("カレンダーイベント作成エラー:", error);
-    // dataパラメータが定義されていないエラーを修正
-    if (data) {
-      updateReservationStatus(data, "失敗");
-    }
+    // ステータス更新は呼び出し元で行う
     return {
       success: false,
       message: error.toString(),
