@@ -130,8 +130,16 @@ function onSpreadsheetChange(e) {
     // 空のデータは処理しない（第一希望の日付をチェック）
     if (!data[4]) return; // E列: 第一希望 が空の場合
 
+    // ステータスが既に処理済みの場合は重複処理を防ぐ
+    const status = data[6]; // G列: ステータス
+    if (status === "完了" || status === "処理中") {
+      console.log("既に処理済みのため、重複処理をスキップします:", status);
+      return;
+    }
+
     // 日付を適切な形式に変換
     const formattedDate = convertSpreadsheetDate(data[4]); // E列: 第一希望
+    const secondDate = data[5] ? convertSpreadsheetDate(data[5]) : null; // F列: 第二希望
 
     // メイン処理を実行
     processReservation({
@@ -141,7 +149,7 @@ function onSpreadsheetChange(e) {
       location: data[3] || "コミプラ", // D列: 場所（空なら「コミプラ」）
       threadTs: extractThreadTs(data[8]), // I列: tsを含むURL
       description: data[7] || "", // H列: 概要
-      secondDate: data[5] || null, // F列: 第二希望（今後の拡張用）
+      secondDate: secondDate, // F列: 第二希望（適切に変換）
     });
   } catch (error) {
     console.error("onSpreadsheetChange エラー:", error);

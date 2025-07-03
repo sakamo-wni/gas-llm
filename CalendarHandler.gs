@@ -343,32 +343,46 @@ function sendSlackNotification() {
       }
     }
 
-    // メッセージテンプレート
-    let template;
-    if (type === "24h") {
-      template =
-        config.SLACK_MESSAGE_TEMPLATE_24H ||
-        "【予約通知】明日 {time} から「{title}」の予約があります。\n場所: {location}\nGoogle Meet: {meetUrl}";
-    } else if (type === "3h") {
-      template =
-        config.SLACK_MESSAGE_TEMPLATE_3H ||
-        "【予約通知】本日 {time} から「{title}」の予約があります。\n場所: {location}\nGoogle Meet: {meetUrl}";
-    } else if (type === "3m") {
-      template =
-        config.SLACK_MESSAGE_TEMPLATE_3M ||
-        "【直前通知】まもなく {time} から「{title}」の予約が始まります！\n場所: {location}\nGoogle Meet: {meetUrl}";
-    } else {
-      console.warn("未知の通知タイプ:", type);
-      sheet.getRange(i + 1, idxSent + 1).setValue(true);
-      continue;
-    }
+    // LLMを使用してメッセージを生成
+    const eventData = {
+      title: event.getTitle(),
+      date: formattedDate,
+      time: formattedTime,
+      location: event.getLocation() || "未定",
+      meetUrl: meetUrl !== "N/A" ? meetUrl : null
+    };
 
-    const message = template
-      .replace(/{title}/g, event.getTitle())
-      .replace(/{date}/g, formattedDate)
-      .replace(/{time}/g, formattedTime)
-      .replace(/{location}/g, event.getLocation() || "未定")
-      .replace(/{meetUrl}/g, meetUrl);
+    let message = generateNotificationMessage(eventData, type);
+    
+    // LLMでの生成に失敗した場合はフォールバック
+    if (!message) {
+      console.warn("LLMでのメッセージ生成に失敗、フォールバックテンプレートを使用");
+      let template;
+      if (type === "24h") {
+        template =
+          config.SLACK_MESSAGE_TEMPLATE_24H ||
+          "【予約通知】明日 {time} から「{title}」の予約があります。\n場所: {location}\nGoogle Meet: {meetUrl}";
+      } else if (type === "3h") {
+        template =
+          config.SLACK_MESSAGE_TEMPLATE_3H ||
+          "【予約通知】本日 {time} から「{title}」の予約があります。\n場所: {location}\nGoogle Meet: {meetUrl}";
+      } else if (type === "3m") {
+        template =
+          config.SLACK_MESSAGE_TEMPLATE_3M ||
+          "【直前通知】まもなく {time} から「{title}」の予約が始まります！\n場所: {location}\nGoogle Meet: {meetUrl}";
+      } else {
+        console.warn("未知の通知タイプ:", type);
+        sheet.getRange(i + 1, idxSent + 1).setValue(true);
+        continue;
+      }
+
+      message = template
+        .replace(/{title}/g, event.getTitle())
+        .replace(/{date}/g, formattedDate)
+        .replace(/{time}/g, formattedTime)
+        .replace(/{location}/g, event.getLocation() || "未定")
+        .replace(/{meetUrl}/g, meetUrl);
+    }
 
     if (sendWebhookMessage(config.SLACK_WEBHOOK_URL, message)) {
       console.log("Slack 通知送信成功");

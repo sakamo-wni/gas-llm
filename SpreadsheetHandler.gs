@@ -14,12 +14,14 @@ function writeToSpreadsheet(data) {
     // 既存のワークフローから来た場合は、最終行のデータを更新
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
-      const lastRowData = sheet.getRange(lastRow, 1, 1, 8).getValues()[0];
+      const lastRowData = sheet.getRange(lastRow, 1, 1, 9).getValues()[0];
       // 同じ第一希望日時のデータがあれば、それを更新（ステータスのみ）
       if (lastRowData[4] && new Date(lastRowData[4]).getTime() === new Date(data.date).getTime()) {
-        // ステータスを更新
-        sheet.getRange(lastRow, 7).setValue('処理中');
-        console.log('既存の行のステータスを更新しました');
+        // 既に処理中でない場合のみ更新
+        if (lastRowData[6] !== '処理中') {
+          sheet.getRange(lastRow, 7).setValue('処理中');
+          console.log('既存の行のステータスを更新しました');
+        }
         return true;
       }
     }
